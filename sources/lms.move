@@ -32,6 +32,11 @@ module lms::lms {
     institute: address,
   }
 
+  struct InstituteCap has key {
+    id: UID,
+    to: ID
+  }
+
   struct Course has key, store {
     id: UID,
     title: String,
@@ -83,14 +88,15 @@ struct GrantApproval has key, store {
 
   //   functions
   // create new institute
-  public entry fun create_institute(
+  public fun create_institute(
     name: String,
     email: String,
     phone: String,
     fees: u64,
     ctx: &mut TxContext
-  ) {
+  ) : InstituteCap {
     let institute_id = object::new(ctx);
+    let inner_ = object::uid_to_inner(&institute_id);
     let institute = Institute {
       id: institute_id,
       name,
@@ -103,7 +109,13 @@ struct GrantApproval has key, store {
       requests: table::new<ID, EnrollmentRequest>(ctx),
       institute: tx_context::sender(ctx),
     };
+
+    let cap = InstituteCap {
+      id: object::new(ctx),
+      to: inner_
+    };
     transfer::share_object(institute);
+    cap
   }
 
   // create new student
