@@ -13,7 +13,6 @@ module lms::lms {
   //   errors
   const EInsufficientBalance: u64 = 1;
   const ENotInstitute: u64 = 2;
-  const ENotStudent: u64 = 4;
   const ENotInstituteStudent: u64 = 5;
   const EInsufficientCapacity: u64 = 6;
   const EGrantNotApproved: u64 = 7;
@@ -132,8 +131,7 @@ module lms::lms {
     self: &mut Institute,
     title: String,
     instructor: String,
-    capacity: u64,
-    ctx: &mut TxContext
+    capacity: u64
   ) {
     assert!(cap.to == object::id(self), ENotOwner);
     let course = Course {
@@ -179,44 +177,37 @@ module lms::lms {
   }
 
   // fund student account
-  public entry fun fund_student_account(
+  public entry fun deposit_student_account(
     student: &mut Student,
     amount: Coin<SUI>,
-    ctx: &mut TxContext
   ) {
-    assert!(tx_context::sender(ctx) == student.student, ENotStudent);
-    let coin_amount = coin::into_balance(amount);
-    balance::join(&mut student.balance, coin_amount);
+    coin::put(&mut student.balance, amount);
   }
 
   // check student balance
   public fun student_check_balance(
     student: &Student,
-    ctx:  &mut TxContext
-  ): &Balance<SUI>  {
-    assert!(tx_context::sender(ctx) == student.student, ENotStudent);
-    &student.balance
+  ) : u64  {
+    balance::value(&student.balance)
   }
 
   // institute check balance
   public fun institute_check_balance(
-    institute: &Institute,
-    ctx:  &mut TxContext
-  ): &Balance<SUI>  {
-    assert!(tx_context::sender(ctx) == institute.institute, ENotInstitute);
-    &institute.balance
-  }
+    self: &Institute,
+  ) : u64 {
+    balance::value(&self.balance)
 
+  }
   // withdraw institute balance
-  public entry fun withdraw_institute_balance(
-    institute: &mut Institute,
+  public fun withdraw_institute_balance(
+    cap: &InstituteCap,
+    self: &mut Institute,    
     amount: u64,
     ctx: &mut TxContext
-  ) {
-    assert!(tx_context::sender(ctx) == institute.institute, ENotInstitute);
-    assert!(balance::value(&institute.balance) >= amount, EInsufficientBalance);
-    let payment = coin::take(&mut institute.balance, amount, ctx);
-    transfer::public_transfer(payment, institute.institute);
+  ) : Coin<SUI> {
+    assert!(cap.to == object::id(self), ENotOwner);
+    let payment = coin::take(&mut self.balance, amount, ctx);
+    payment
   }
 // create new grant request
 public entry fun create_grant_request(
@@ -260,27 +251,25 @@ public entry fun approve_grant_request(
     transfer::share_object(grant_approval);
     }
     // update course information
-    // public entry fun update_course(
-    //     course: &mut Course,
-    //     title: String,
-    //     instructor: String,
-    //     capacity: u64,
-    //     ctx: &mut TxContext
-    // ) {
-    //     course.title = title;
-    //     course.instructor = instructor;
-    //     course.capacity = capacity;
-    // }
-    // // update student information
-    // public entry fun update_student(
-    //     student: &mut Student,
-    //     name: String,
-    //     email: String,
-    //     homeAddress: String,
-    //     ctx: &mut TxContext
-    // ) {
-    //     student.name = name;
-    //     student.email = email;
-    //     student.homeAddress = homeAddress;
-    // }
+    public fun update_course(
+        course: &mut Course,
+        title: String,
+        instructor: String,
+        capacity: u64
+    ) {
+        course.title = title;
+        course.instructor = instructor;
+        course.capacity = capacity;
+    }
+    // update student information
+    public entry fun update_student(
+        student: &mut Student,
+        name: String,
+        email: String,
+        homeAddress: String,
+    ) {
+        student.name = name;
+        student.email = email;
+        student.homeAddress = homeAddress;
+    }
 }
