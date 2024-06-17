@@ -17,6 +17,7 @@ module lms::lms {
   const ENotInstituteStudent: u64 = 5;
   const EInsufficientCapacity: u64 = 6;
   const EGrantNotApproved: u64 = 7;
+  const ENotOwner: u64 = 8;
 
   //   structs
   struct Institute has key, store {
@@ -26,7 +27,7 @@ module lms::lms {
     phone: String,
     fees: u64,
     balance: Balance<SUI>,
-    courses: Table<ID, Course>,
+    courses: Table<String, Course>,
     enrollments: Table<ID, Enrollment>,
     requests: Table<ID, EnrollmentRequest>,
     institute: address,
@@ -37,8 +38,7 @@ module lms::lms {
     to: ID
   }
 
-  struct Course has key, store {
-    id: UID,
+  struct Course has store {
     title: String,
     instructor: String,
     capacity: u64,
@@ -61,13 +61,6 @@ module lms::lms {
     courseId: ID,
     date: String,
     time: u64,
-  }
-
-  struct EnrollmentRequest has key, store {
-    id: UID,
-    student: address,
-    homeAddress: String,
-    created_at: u64,
   }
   
   struct GrantRequest has key, store {
@@ -103,7 +96,7 @@ module lms::lms {
       phone,
       fees,
       balance: balance::zero<SUI>(),
-      courses: table::new<ID, Course>(ctx),
+      courses: table::new<String, Course>(ctx),
       enrollments: table::new<ID, Enrollment>(ctx),
       requests: table::new<ID, EnrollmentRequest>(ctx),
       institute: tx_context::sender(ctx),
@@ -133,77 +126,61 @@ module lms::lms {
       balance: balance::zero<SUI>(),
       student: tx_context::sender(ctx),
     }
-  
   }
 
   //  add course
   public entry fun add_course(
+    cap: &InstituteCap,
+    self: &mut Institute,
     title: String,
     instructor: String,
     capacity: u64,
     ctx: &mut TxContext
   ) {
-    let course_id = object::new(ctx);
+    assert!(cap.to == object::id(self), ENotOwner);
     let course = Course {
-      id: course_id,
       title,
       instructor,
       capacity,
       enrolledStudents: vector::empty<address>(),
     };
-    transfer::share_object(course);
+    table::add(&mut self.courses, title, course);
   }
 
-  // new enrollment request
-  public entry fun new_enrollment_request(
-    student: &Student,
-    clock: &Clock,
-    ctx: &mut TxContext
-  ){
-    let request_id = object::new(ctx);
-    let request = EnrollmentRequest {
-      id: request_id,
-      student: student.student,
-      homeAddress: student.homeAddress,
-      created_at: clock::timestamp_ms(clock),
-    };
-    transfer::share_object(request);
-  }
+  // add enrollment
+  // public entry fun add_enrollment(
+  //   institute: &mut Institute,
+  //   student: &mut Student,
+  //   course: &mut Course,
+  //   date: String,
+  //   clock: &Clock,
+  //   ctx: &mut TxContext
+  // ){
+  //   assert!(tx_context::sender(ctx) == institute.institute, ENotInstitute);
+  //   assert!(student.student == object::uid_to_address(&student.id), ENotInstituteStudent);
+  //   let enrollment_id = object::new(ctx);
+  //   let course_id = &course.id;
+  //   let enrollment = Enrollment {
+  //     id: enrollment_id,
+  //     student: student.student,
+  //     studentName: student.name,
+  //     courseId: object::uid_to_inner(course_id),
+  //     date,
+  //     time: clock::timestamp_ms(clock),
+  //   };
 
-  //   add enrollment
-  public entry fun add_enrollment(
-    institute: &mut Institute,
-    student: &mut Student,
-    course: &mut Course,
-    date: String,
-    clock: &Clock,
-    ctx: &mut TxContext
-  ){
-    assert!(tx_context::sender(ctx) == institute.institute, ENotInstitute);
-    assert!(student.student == object::uid_to_address(&student.id), ENotInstituteStudent);
-    let enrollment_id = object::new(ctx);
-    let course_id = &course.id;
-    let enrollment = Enrollment {
-      id: enrollment_id,
-      student: student.student,
-      studentName: student.name,
-      courseId: object::uid_to_inner(course_id),
-      date,
-      time: clock::timestamp_ms(clock),
-    };
+  //   // deduct fees from student balance
+  //   assert!(balance::value(&student.balance) >= institute.fees, EInsufficientBalance);
+  //   assert!(vector::length(&course.enrolledStudents) < course.capacity, EInsufficientCapacity);
 
-    // deduct fees from student balance
-    assert!(balance::value(&student.balance) >= institute.fees, EInsufficientBalance);
-    assert!(vector::length(&course.enrolledStudents) < course.capacity, EInsufficientCapacity);
+  //   let fees = coin::take(&mut student.balance, institute.fees, ctx);
+  //   transfer::public_transfer(fees, institute.institute);
 
-    let fees = coin::take(&mut student.balance, institute.fees, ctx);
-    transfer::public_transfer(fees, institute.institute);
+  //   // enroll student in course
+  //   vector::push_back(&mut course.enrolledStudents, student.student);
 
-    // enroll student in course
-    vector::push_back(&mut course.enrolledStudents, student.student);
-
-    table::add<ID, Enrollment>(&mut institute.enrollments, object::uid_to_inner(&enrollment.id), enrollment);
-  }
+  //   table::add<ID, Enrollment>(&mut institute.enrollments, object::uid_to_inner(&enrollment.id), enrollment);
+  // }
 
   // fund student account
   public entry fun fund_student_account(
@@ -287,27 +264,27 @@ public entry fun approve_grant_request(
     transfer::share_object(grant_approval);
     }
     // update course information
-    public entry fun update_course(
-        course: &mut Course,
-        title: String,
-        instructor: String,
-        capacity: u64,
-        ctx: &mut TxContext
-    ) {
-        course.title = title;
-        course.instructor = instructor;
-        course.capacity = capacity;
-    }
-    // update student information
-    public entry fun update_student(
-        student: &mut Student,
-        name: String,
-        email: String,
-        homeAddress: String,
-        ctx: &mut TxContext
-    ) {
-        student.name = name;
-        student.email = email;
-        student.homeAddress = homeAddress;
-    }
+    // public entry fun update_course(
+    //     course: &mut Course,
+    //     title: String,
+    //     instructor: String,
+    //     capacity: u64,
+    //     ctx: &mut TxContext
+    // ) {
+    //     course.title = title;
+    //     course.instructor = instructor;
+    //     course.capacity = capacity;
+    // }
+    // // update student information
+    // public entry fun update_student(
+    //     student: &mut Student,
+    //     name: String,
+    //     email: String,
+    //     homeAddress: String,
+    //     ctx: &mut TxContext
+    // ) {
+    //     student.name = name;
+    //     student.email = email;
+    //     student.homeAddress = homeAddress;
+    // }
 }
