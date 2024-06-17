@@ -29,7 +29,6 @@ module lms::lms {
     balance: Balance<SUI>,
     courses: Table<String, Course>,
     enrollments: Table<ID, Enrollment>,
-    requests: Table<ID, EnrollmentRequest>,
     institute: address,
   }
 
@@ -58,7 +57,7 @@ module lms::lms {
     id: UID,
     student: address,
     studentName: String,
-    courseId: ID,
+    course: String,
     date: String,
     time: u64,
   }
@@ -98,7 +97,6 @@ module lms::lms {
       balance: balance::zero<SUI>(),
       courses: table::new<String, Course>(ctx),
       enrollments: table::new<ID, Enrollment>(ctx),
-      requests: table::new<ID, EnrollmentRequest>(ctx),
       institute: tx_context::sender(ctx),
     };
 
@@ -147,40 +145,38 @@ module lms::lms {
     table::add(&mut self.courses, title, course);
   }
 
-  // add enrollment
-  // public entry fun add_enrollment(
-  //   institute: &mut Institute,
-  //   student: &mut Student,
-  //   course: &mut Course,
-  //   date: String,
-  //   clock: &Clock,
-  //   ctx: &mut TxContext
-  // ){
-  //   assert!(tx_context::sender(ctx) == institute.institute, ENotInstitute);
-  //   assert!(student.student == object::uid_to_address(&student.id), ENotInstituteStudent);
-  //   let enrollment_id = object::new(ctx);
-  //   let course_id = &course.id;
-  //   let enrollment = Enrollment {
-  //     id: enrollment_id,
-  //     student: student.student,
-  //     studentName: student.name,
-  //     courseId: object::uid_to_inner(course_id),
-  //     date,
-  //     time: clock::timestamp_ms(clock),
-  //   };
+  //add enrollment
+  public entry fun add_enrollment(
+    institute: &mut Institute,
+    student: &mut Student,
+    course: String,
+    date: String,
+    clock: &Clock,
+    ctx: &mut TxContext
+  ){
+    assert!(student.student == object::uid_to_address(&student.id), ENotInstituteStudent);
+    let enrollment_id = object::new(ctx);
+    let enrollment = Enrollment {
+      id: enrollment_id,
+      student: student.student,
+      studentName: student.name,
+      course: course,
+      date,
+      time: clock::timestamp_ms(clock),
+    };
+    let course_ = table::borrow_mut(&mut institute.courses, course);
+    // deduct fees from student balance
+    assert!(balance::value(&student.balance) >= institute.fees, EInsufficientBalance);
+    assert!(vector::length(&course_.enrolledStudents) < course_.capacity, EInsufficientCapacity);
 
-  //   // deduct fees from student balance
-  //   assert!(balance::value(&student.balance) >= institute.fees, EInsufficientBalance);
-  //   assert!(vector::length(&course.enrolledStudents) < course.capacity, EInsufficientCapacity);
+    let fees = balance::split(&mut student.balance, institute.fees);
+    balance::join(&mut institute.balance, fees);
 
-  //   let fees = coin::take(&mut student.balance, institute.fees, ctx);
-  //   transfer::public_transfer(fees, institute.institute);
+    // enroll student in course
+    vector::push_back(&mut course_.enrolledStudents, student.student);
 
-  //   // enroll student in course
-  //   vector::push_back(&mut course.enrolledStudents, student.student);
-
-  //   table::add<ID, Enrollment>(&mut institute.enrollments, object::uid_to_inner(&enrollment.id), enrollment);
-  // }
+    table::add<ID, Enrollment>(&mut institute.enrollments, object::uid_to_inner(&enrollment.id), enrollment);
+  }
 
   // fund student account
   public entry fun fund_student_account(
