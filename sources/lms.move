@@ -71,20 +71,19 @@ module lms::lms {
   }
   
   struct GrantRequest has key, store {
-  id: UID,
-  student: address,
-  amount_requested: u64,
-  reason: String,
-  approved: bool,
-}
-
-struct GrantApproval has key, store {
-  id: UID,
-  grant_request_id: ID,
-  approved_by: address,
-  amount_approved: u64,
-  reason: String,
-}
+    id: UID,
+    student: address,
+    amount_requested: u64,
+    reason: String,
+    approved: bool,
+  }
+  struct GrantApproval has key, store {
+    id: UID,
+    grant_request_id: ID,
+    approved_by: address,
+    amount_approved: u64,
+    reason: String,
+  }
 
   //   functions
   // create new institute
@@ -119,22 +118,22 @@ struct GrantApproval has key, store {
   }
 
   // create new student
-  public entry fun create_student(
+  public fun create_student(
     name: String,
     email: String,
     homeAddress: String,
     ctx: &mut TxContext
-  ) {
+  ) : Student {
     let student_id = object::new(ctx);
-    let student = Student {
+    Student {
       id: student_id,
       name,
       email,
       homeAddress,
       balance: balance::zero<SUI>(),
       student: tx_context::sender(ctx),
-    };
-    transfer::share_object(student);
+    }
+  
   }
 
   //  add course
